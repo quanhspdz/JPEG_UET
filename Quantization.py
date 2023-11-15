@@ -95,7 +95,7 @@ def show_images(original_image, reconstructed_image, title1='Ảnh Gốc', title
 image = cv2.imread('og.jpg', cv2.IMREAD_GRAYSCALE)
 
 # Áp dụng DCT với lượng tử hóa
-quantization_factor = 10  # Bạn có thể điều chỉnh hệ số này theo yêu cầu của mình
+quantization_factor = 10  # Thay đổi hệ số lượng tử hóa
 result_quantized = dct_image_quantized(image, quantization_factor)
 
 # Thực hiện giải nén trên kết quả đã lượng tử hóa
@@ -103,3 +103,4 @@ reconstruction_quantized = idct_image_quantized(result_quantized, quantization_f
 
 # Hiển thị ảnh gốc và ảnh đã giải nén
 show_images(image, reconstruction_quantized)
+
