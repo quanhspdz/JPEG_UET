@@ -1,113 +1,105 @@
-import numpy as np
 import cv2
-import scipy.fftpack as fft
-from scipy.fftpack import idct
+import numpy as np
 import matplotlib.pyplot as plt
 
-# Hàm tích chập 1D giữa hai mảng
-def convolve1D(data, kernel):
-    return [sum(data[i:i+len(kernel)] * kernel) for i in range(len(data) - len(kernel) + 1)]
+# Hàm DCT 8x8
+def dct(array):
+    result = np.zeros_like(array, dtype=float)
 
-# Hàm biến đổi DCT 1D
-def dct1D(data):
-    N = len(data)
-    dct = np.zeros(N)
-    for k in range(N):
-        sum_val = 0.0
-        for n in range(N):
-            sum_val += data[n] * np.cos((np.pi * k / N) * (n + 0.5))
-        dct[k] = sum_val
-    return dct
+    for i in range(8):
+        for u in range(8):
+            cu = 1 / np.sqrt(2) if u == 0 else 1
+            sum_val = 0
+            for v in range(8):
+                sum_val += array[v, i] * np.cos((2 * v + 1) * np.pi * u / 16)
+            result[u, i] = cu * sum_val / 2
 
-# Hàm biến đổi DCT 2D cho một khối 8x8
-def dct2D(block):
-    # Biến đổi DCT trên các hàng
-    row_dct = [dct1D(row) for row in block]
-    
-    # Biến đổi DCT trên các cột của ma trận đã được biến đổi DCT từ trước
-    col_dct = [dct1D(np.array(row_dct).T) for row_dct in block]
+    for j in range(8):
+        for u in range(8):
+            cu = 1 / np.sqrt(2) if u == 0 else 1
+            sum_val = 0
+            for v in range(8):
+                sum_val += result[u, v] * np.cos((2 * v + 1) * np.pi * j / 16)
+            array[u, j] = cu * sum_val / 2
 
-    return np.array(col_dct)
+    return array
 
-# Hàm lấy một khối 8x8 từ ảnh
-def get_image_block(image, i, j):
-    return image[i:i+8, j:j+8]
+# Hàm IDCT 8x8
+def idct(array):
+    reconstruction = np.zeros_like(array, dtype=float)
 
-# Hàm nén ảnh bằng DCT với lượng tử hóa
-def compress_image(image, quantization_matrix):
+    for i in range(8):
+        for v in range(8):
+            sum_val = 0
+            for u in range(8):
+                cu = 1 / np.sqrt(2) if u == 0 else 1
+                sum_val += array[i, u] * cu * np.cos((2 * v + 1) * np.pi * u / 16)
+            sum_val *= 1/2
+            reconstruction[i, v] = sum_val
+
+    for j in range(8):
+        for v in range(8):
+            sum_val = 0
+            for u in range(8):
+                cu = 1 / np.sqrt(2) if u == 0 else 1
+                sum_val += reconstruction[u, j] * cu * np.cos((2 * v + 1) * np.pi * u / 16)
+            sum_val *= 1/2
+            reconstruction[v, j] = sum_val
+
+    return reconstruction
+
+# Hàm lượng tử hóa ảnh xám sử dụng DCT
+def dct_image_quantized(image, quantization_factor=1):
     height, width = image.shape
-    compressed_image = np.zeros((height, width))
+    block_size = 8
+    blocks_w = width + (block_size - width % block_size) if width % block_size != 0 else width
+    blocks_h = height + (block_size - height % block_size) if height % block_size != 0 else height
 
-    for i in range(0, height, 8):
-        for j in range(0, width, 8):
-            block = get_image_block(image, i, j)
-            dct_block = dct2D(block)
-            #Chia từng khối DCT với ma trận quantization
-            quantized_block = np.round(dct_block / quantization_matrix)
-            compressed_image[i:i+8, j:j+8] = quantized_block
+    new_image = np.zeros((blocks_h, blocks_w))
+    new_image[:height, :width] = image
 
-    return compressed_image
+    new_image = new_image.astype(float)
+    new_image -= 128
 
-# Hàm giải nén ảnh bằng DCT với lượng tử hóa
-def decompress_image(compressed_image, quantization_matrix):
-    height, width = compressed_image.shape
-    decompressed_image = np.zeros((height, width))
+    result = np.zeros_like(new_image)
 
-    for i in range(0, height, 8):
-        for j in range(0, width, 8):
-            block = get_image_block(compressed_image, i, j)
-            dequantized_block = block * quantization_matrix
-            idct_block = np.round(np.real(fft.idct(fft.idct(dequantized_block.T, type=2, norm='ortho').T, type=2, norm='ortho')))
-            decompressed_image[i:i+8, j:j+8] = idct_block
+    for i in range(0, blocks_h, block_size):
+        for j in range(0, blocks_w, block_size):
+            block = new_image[i:i+block_size, j:j+block_size]
+            result[i:i+block_size, j:j+block_size] = dct(block) / quantization_factor
 
-    return decompressed_image
+    return result
 
-# Hàm chỉnh ảnh thành kích thước chia hết cho 8x8
-def resize_image_to_multiple_of_8(image):
-    height, width = image.shape
-    new_height = ((height + 7) // 8) * 8
-    new_width = ((width + 7) // 8) * 8
-    resized_image = np.zeros((new_height, new_width), dtype=image.dtype)
-    resized_image[0:height, 0:width] = image
-    return resized_image
+# Hàm giải nén ảnh đã lượng tử hóa
+def idct_image_quantized(result, quantization_factor=1):
+    height, width = result.shape
+    block_size = 8
 
-# Đọc ảnh gốc
-original_image = cv2.imread('vidu.jpg', cv2.IMREAD_GRAYSCALE)
+    reconstruction = np.zeros_like(result)
 
-if original_image is None:
-    print("Không thể đọc ảnh.")
-else:
-    # Kích thước ảnh
-    height, width = original_image.shape[:2]
+    for i in range(0, height, block_size):
+        for j in range(0, width, block_size):
+            block = result[i:i+block_size, j:j+block_size]
+            reconstruction[i:i+block_size, j:j+block_size] = idct(block) * quantization_factor + 128
 
-    print(f'Kích thước ảnh: {width}x{height}')
+    return reconstruction
 
-    # Cắt ảnh thành kích thước chia hết cho 8x8
-    resized_image = resize_image_to_multiple_of_8(original_image)
+# Hàm hiển thị ảnh gốc và ảnh đã giải nén
+def show_images(original_image, reconstructed_image, title1='Ảnh Gốc', title2='Ảnh Đã Giải Nén'):
+    plt.gray()
+    plt.subplot(121), plt.imshow(original_image), plt.axis('off'), plt.title(title1, size=10)
+    plt.subplot(122), plt.imshow(reconstructed_image), plt.axis('off'), plt.title(title2, size=10)
+    plt.show()
 
-    # Tạo ma trận lượng tử hóa
-    quantization_matrix = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
-                                    [12, 12, 14, 19, 26, 58, 60, 55],
-                                    [14, 13, 16, 24, 40, 57, 69, 56],
-                                    [14, 17, 22, 29, 51, 87, 80, 62],
-                                    [18, 22, 37, 56, 68, 109, 103, 77],
-                                    [24, 35, 55, 64, 81, 104, 113, 92],
-                                    [49, 64, 78, 87, 103, 121, 120, 101],
-                                    [72, 92, 95, 98, 112, 100, 103, 99]])
+# Đọc ảnh
+image = cv2.imread('og.jpg', cv2.IMREAD_GRAYSCALE)
 
-    # Nén ảnh sử dụng ma trận lượng tử hóa
-    compressed_image = compress_image(resized_image, quantization_matrix)
-    #Lưu ảnh
-    cv2.imwrite('compressed_image.jpg', compressed_image)
+# Áp dụng DCT với lượng tử hóa
+quantization_factor = 10  # Bạn có thể điều chỉnh hệ số này theo yêu cầu của mình
+result_quantized = dct_image_quantized(image, quantization_factor)
 
-    # Giải nén ảnh sử dụng ma trận lượng tử hóa
-    decompressed_image = decompress_image(compressed_image, quantization_matrix)
+# Thực hiện giải nén trên kết quả đã lượng tử hóa
+reconstruction_quantized = idct_image_quantized(result_quantized, quantization_factor)
 
-    # Lưu ảnh nén và giải nén
-    cv2.imwrite('decompressed_image.jpg', decompressed_image)
-
-    # Hiển thị ảnh gốc và ảnh giải nén
-    cv2.imshow('Compressed Image', compressed_image)
-    cv2.imshow('Decompressed Image', decompressed_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+# Hiển thị ảnh gốc và ảnh đã giải nén
+show_images(image, reconstruction_quantized)
