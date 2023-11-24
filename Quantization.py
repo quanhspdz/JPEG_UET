@@ -92,7 +92,7 @@ def show_images(original_image, reconstructed_image, title1='Ảnh Gốc', title
     plt.show()
 
 # Đọc ảnh
-image = cv2.imread('og.jpg', cv2.IMREAD_GRAYSCALE)
+image = cv2.imread('vidu_1.png', cv2.IMREAD_GRAYSCALE)
 
 # Áp dụng DCT với lượng tử hóa
 quantization_factor = 10  # Thay đổi hệ số lượng tử hóa

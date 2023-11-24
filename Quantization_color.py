@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 # DCT block 8x8
 def dct(array, quantization_matrix):
@@ -105,9 +106,31 @@ def idct_image(result, quantization_matrix):
                 image[i:i + block_size, j:j + block_size, c] = idct(block, quantization_matrix) + 128 
 
     return image.clip(0, 255).astype(np.uint8) #Đảm bảo các giá trị pixel trong khoảng 0-255
+def encode_rle(matrix):
+    flatten_matrix = matrix.flatten()
+    encoded_matrix = []
+    count = 0
+    for i in range(len(flatten_matrix)):
+        if i == 0:
+            count = 1
+        elif flatten_matrix[i] == flatten_matrix[i - 1]:
+            count += 1
+        else:
+            encoded_matrix.append((flatten_matrix[i - 1], count))
+            count = 1
+    encoded_matrix.append((flatten_matrix[-1], count))
+    return encoded_matrix
+
+def decode_rle(encoded_matrix, shape):
+    decoded_matrix = np.zeros(shape)
+    index = 0
+    for value, count in encoded_matrix:
+        decoded_matrix.flat[index:index + count] = value
+        index += count
+    return decoded_matrix.reshape(shape)
 
 # Đọc ảnh
-image = cv2.imread('og.png')
+image = cv2.imread('vidu_1.png')
 
 # Ma trận lượng tử hóa
 quantization_matrix = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
@@ -122,12 +145,27 @@ quantization_matrix = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
 # DCT + Quantization trên ảnh màu đầu vào
 result = dct_image(image, quantization_matrix)
 
+# Encode the DCT coefficients using Run-Length Encoding
+encoded_data = encode_rle(result)
 # Tái tạo ảnh
 reconstruction = idct_image(result, quantization_matrix)
-cv2.imwrite('decompressed_image.jpg', reconstruction)
+cv2.imwrite('decompress_1.png', reconstruction)
+decoded_data = decode_rle(encoded_data, result.shape)
+reconstruction = idct_image(decoded_data, quantization_matrix)
 
 # hiển thị hình ảnh 
+# plt.gray()
+# plt.subplot(121), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Original Image', size=10)
+# plt.subplot(122), plt.imshow(cv2.cvtColor(reconstruction, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Decompressed Image', size=10)
+# plt.show()
+original_size = os.path.getsize('vidu_1.png')
+compressed_size = os.path.getsize('decompress_1.png')
+
+compression_ratio = original_size / compressed_size
+print(f"Compression Ratio: {compression_ratio:.2f}")
+
 plt.gray()
-plt.subplot(121), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Original Image', size=10)
-plt.subplot(122), plt.imshow(cv2.cvtColor(reconstruction, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Decompressed Image', size=10)
+plt.subplot(131), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Original Image', size=10)
+plt.subplot(132), plt.imshow(result[0], cmap='gray'), plt.axis('off'), plt.title('Quantized DCT Coefficients', size=10)
+plt.subplot(133), plt.imshow(cv2.cvtColor(reconstruction, cv2.COLOR_BGR2RGB)), plt.axis('off'), plt.title('Decompressed Image', size=10)
 plt.show()
