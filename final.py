@@ -1,20 +1,19 @@
-import numpy as np
-import cv2
-import scipy.fftpack as fft
-from scipy.fftpack import idct
-import matplotlib.pyplot as plt
+from filecmp import cmp
 
-import matplotlib
+import cv2
+from scipy.fftpack import idct
+
 import collections
-import math
-import string
 import os
-import numpy as np
 import time
 from math import log
+
+import cv2
+import numpy as np
 from matplotlib import pyplot as plt
-from skimage import img_as_float
+from scipy.fftpack import idct
 from skimage.metrics import structural_similarity as ssim
+
 
 # dct block 8x8
 def dct(array, quantization_matrix):
@@ -27,7 +26,7 @@ def dct(array, quantization_matrix):
             sum_val = 0
             for v in range(8):
                 sum_val += array[i][v] * np.cos((2 * v + 1) * np.pi * u / 16)
-            result[i][u] = sum_val * cu * 1/2
+            result[i][u] = sum_val * cu * 1 / 2
 
     # DCT theo cột
     for j in range(8):
@@ -36,14 +35,15 @@ def dct(array, quantization_matrix):
             sum_val = 0
             for v in range(8):
                 sum_val += result[v][j] * np.cos((2 * v + 1) * np.pi * u / 16)
-            result[u][j] = sum_val * cu * 1/2
+            result[u][j] = sum_val * cu * 1 / 2
 
     # Quantization
     result = np.round(result / quantization_matrix)
 
     return result
 
-# IDCT block 8x8 
+
+# IDCT block 8x8
 def idct(array, quantization_matrix):
     reconstruction = np.zeros_like(array, dtype=float)
 
@@ -54,22 +54,24 @@ def idct(array, quantization_matrix):
                 for v in range(8):
                     cu = 1 / np.sqrt(2) if u == 0 else 1
                     cv = 1 / np.sqrt(2) if v == 0 else 1
-                    sum_val += cu * cv * array[u, v] * np.cos((2 * i + 1) * u * np.pi / 16) * np.cos((2 * j + 1) * v * np.pi / 16)
+                    sum_val += cu * cv * array[u, v] * np.cos((2 * i + 1) * u * np.pi / 16) * np.cos(
+                        (2 * j + 1) * v * np.pi / 16)
             reconstruction[i, j] = sum_val / 4
 
     # Lượng tử hóa ngược
-    reconstruction = reconstruction * quantization_matrix #Nhân ngược lại với ma trận lượng tử hóa để được ảnh giải nén 
+    reconstruction = reconstruction * quantization_matrix  # Nhân ngược lại với ma trận lượng tử hóa để được ảnh giải nén
     return reconstruction
 
-# DCT + quantization function 
+
+# DCT + quantization function
 def dct_image(image, quantization_matrix):
     if len(image.shape) == 2:  # Kiểm tra có là ảnh xám hay không
         height, width = image.shape
         channels = 1
     else:  # Ảnh màu
         height, width, channels = image.shape
-    
-    #Số lượng các khối được tính toán để  chia hết cho 8 
+
+    # Số lượng các khối được tính toán để  chia hết cho 8
     block_size = 8
     blocks_w = width + (block_size - width % block_size) if width % block_size != 0 else width
     blocks_h = height + (block_size - height % block_size) if height % block_size != 0 else height
@@ -94,6 +96,7 @@ def dct_image(image, quantization_matrix):
 
     return result
 
+
 # IDCT + Iquantization function for an image
 def idct_image(result, quantization_matrix):
     height, width, channels = result.shape
@@ -106,9 +109,9 @@ def idct_image(result, quantization_matrix):
             for j in range(0, width, block_size):
                 block = result[i:i + block_size, j:j + block_size, c]
                 # Chuyển về giá trị pixel gốc từ 0-255
-                image[i:i + block_size, j:j + block_size, c] = idct(block, quantization_matrix) + 128 
+                image[i:i + block_size, j:j + block_size, c] = idct(block, quantization_matrix) + 128
 
-    return image.clip(0, 255).astype(np.uint8) #Đảm bảo các giá trị pixel trong khoảng 0-255
+    return image.clip(0, 255).astype(np.uint8)  # Đảm bảo các giá trị pixel trong khoảng 0-255
 
 
 def dft_1d(array):
@@ -121,6 +124,7 @@ def dft_1d(array):
         result[u] = sum_val
     return result
 
+
 def idft_1d(array):
     N = len(array)
     result = np.zeros_like(array, dtype=np.complex)
@@ -131,11 +135,14 @@ def idft_1d(array):
         result[x] = sum_val / N
     return result
 
+
 def dft_2d(array):
     return np.fft.fft2(array)
 
+
 def idft_2d(array):
     return np.fft.ifft2(array)
+
 
 def dft_image(image):
     height, width = image.shape
@@ -153,10 +160,11 @@ def dft_image(image):
 
     for i in range(0, blocks_h, block_size):
         for j in range(0, blocks_w, block_size):
-            block = new_image[i:i+block_size, j:j+block_size]
-            result[i:i+block_size, j:j+block_size] = dft_2d(block)
+            block = new_image[i:i + block_size, j:j + block_size]
+            result[i:i + block_size, j:j + block_size] = dft_2d(block)
 
     return result
+
 
 def idft_image(result):
     height, width = result.shape
@@ -166,108 +174,109 @@ def idft_image(result):
 
     for i in range(0, height, block_size):
         for j in range(0, width, block_size):
-            block = result[i:i+block_size, j:j+block_size]
-            image[i:i+block_size, j:j+block_size] = np.real(idft_2d(block)) + 128
+            block = result[i:i + block_size, j:j + block_size]
+            image[i:i + block_size, j:j + block_size] = np.real(idft_2d(block)) + 128
 
     return image.clip(0, 255).astype(np.uint8)
 
 
 ## thuật toán huffman
 class node:
-    def __init__(self, count, index , name="" ):
+    def __init__(self, count, index, name=""):
         self.count = float(count)
         self.index = index
-        self.name  = name
-        if self.name=="" : self.name = index
+        self.name = name
+        if self.name == "": self.name = index
         self.word = ""
         self.isinternal = 0
+
     def __cmp__(self, other):
         return cmp(self.count, other.count)
+
     def report(self):
-        if (self.index == 1 ) :
-            print ('#Symbol\tCount\tCodeword')
-        print ('%s\t(%2.2g)\t%s' % (self.name,self.count,self.word))
+        if (self.index == 1):
+            print('#Symbol\tCount\tCodeword')
+        print('%s\t(%2.2g)\t%s' % (self.name, self.count, self.word))
         pass
-    def associate(self,internalnode):
+
+    def associate(self, internalnode):
         self.internalnode = internalnode
         internalnode.leaf = 1
         internalnode.name = self.name
         pass
+
 
 class internalnode:
     def __init__(self):
         self.leaf = 0
         self.child = []
         pass
-    def children(self,child0,child1):
+
+    def children(self, child0, child1):
         self.leaf = 0
         self.child.append(child0)
         self.child.append(child1)
         pass
 
 
+def iterate(c):
+    if (len(c) > 1):
 
-def iterate (c) :
-
-    if ( len(c) > 1 ) :
-
-    ## sắp xếp các nút theo số lượng, sử dụng hàm __cmp__ được xác định trong lớp nút
-        deletednode = c[0]  #tạo bản sao của nút nhỏ nhất
-        second = c[1].index ## chỉ mục của nút thứ hai nhỏ nhất
+        ## sắp xếp các nút theo số lượng, sử dụng hàm __cmp__ được xác định trong lớp nút
+        deletednode = c[0]  # tạo bản sao của nút nhỏ nhất
+        second = c[1].index  ## chỉ mục của nút thứ hai nhỏ nhất
 
         # cộng  hai thành phần dưới cùng
         c[1].count += c[0].count
         del c[0]
 
-        root = iterate ( c )
+        root = iterate(c)
 
         ## Điền thông tin mới vào danh sách
         ## tìm từ mã đã được tách / nối
-        co = find( lambda p: p.index == second , c )
-        deletednode.word = co.word+'0'
-        c.append( deletednode )
+        co = find(lambda p: p.index == second, c)
+        deletednode.word = co.word + '0'
+        c.append(deletednode)
         co.word += '1'
-        co.count -= deletednode.count   ## khôi phục số node lượng chính xác
+        co.count -= deletednode.count  ## khôi phục số node lượng chính xác
 
         ## tạo ra các nhánh mới trong cây
         newnode0 = internalnode()
         newnode1 = internalnode()
-        treenode = co.internalnode # tìm nút có hai nút con
-        treenode.children(newnode0,newnode1)
+        treenode = co.internalnode  # tìm nút có hai nút con
+        treenode.children(newnode0, newnode1)
         deletednode.associate(newnode0)
         co.associate(newnode1)
         pass
-    else :
+    else:
         c[0].word = ""
         root = internalnode()
         c[0].associate(root)
         pass
     return root
 
-def encode(sourcelist,code):
 
+def encode(sourcelist, code):
     answer = ""
     for s in sourcelist:
         co = find(lambda item: np.all(item == s), code)
         if co is not None:
             answer = answer + co.word
 
-
     return answer
 
-def decode(string,root):
 
-
+def decode(string, root):
     answer = []
-    clist = list( string )
-    #duyệt bắt đầu từ gốc
+    clist = list(string)
+    # duyệt bắt đầu từ gốc
     currentnode = root
     for c in clist:
-        if ( c=='\n' ):  continue #trường hợp đặc biệt cho các ký tự mới
-        assert ( c == '0' )or( c == '1')
+        if (c == '\n'):  continue  # trường hợp đặc biệt cho các ký tự mới
+        assert (c == '0') or (c == '1')
         currentnode = currentnode.child[int(c)]
         if currentnode.leaf != 0:
-            answer.append( str(currentnode.name) )
+            answer.append(str(currentnode.name))
             currentnode = root
         pass
     assert (currentnode == root)
@@ -275,14 +284,14 @@ def decode(string,root):
 
 
 def makenodes(probs):
-
-    m=0
-    c=[]
+    m = 0
+    c = []
     for p in probs:
-        m += 1 ;
-        c.append( node( p[1], m, p[0] ) )
+        m += 1;
+        c.append(node(p[1], m, p[0]))
         pass
     return c
+
 
 ##  Zig-zag
 # def zig_zag(input_matrix, block_size):
@@ -339,7 +348,6 @@ def zig_zag(input_matrix):
     return z
 
 
-
 def zig_zag_reverse(input_matrix, block_size):
     output_matrix = np.empty([block_size, block_size])
     index = 0
@@ -353,7 +361,6 @@ def zig_zag_reverse(input_matrix, block_size):
                 output_matrix[j, i - j] = input_matrix[index]
                 index += 1
     return output_matrix
-
 
 
 def MSE(img1, img2):
@@ -373,11 +380,12 @@ def SSIM(img1, img2):
 
 def Compression_Ratio(filepath):
     Ori_img = os.stat(filepath).st_size
-    Ori_img = Ori_img/1024
+    Ori_img = Ori_img / 1024
     Com_img = os.path.getsize('decompressed.png')
-    Com_img = Com_img/1024
-    CR = Ori_img/float(Com_img)
+    Com_img = Com_img / 1024
+    CR = Ori_img / float(Com_img)
     return CR
+
 
 def find(f, seq):
     for item in seq:
@@ -400,32 +408,30 @@ def main():
                        [49, 64, 78, 87, 103, 121, 120, 101],
                        [72, 92, 95, 98, 112, 100, 103, 99]])
 
-
     ################## JPEG compression ##################
     start = time.time()
     iHeight, iWidth = img.shape[:3]
     zigZag = []
     for startY in range(0, iHeight, 8):
         for startX in range(0, iWidth, 8):
-            block = img[startY:startY+8, startX:startX+8]
+            block = img[startY:startY + 8, startX:startX + 8]
 
             # Tính DCT cho khối
             block_t = np.float32(block)  # chuyển đổi sang số thực
-            dct = dct_image(block_t,qtable)
+            dct_block = dct(block_t, qtable)
 
             # lượng tử hóa các hệ số DCT
-            block_q = np.floor(np.divide(dct, qtable)+0.5)
+            block_q = np.floor(np.divide(dct_block, qtable) + 0.5)
 
             # Zig Zag
             # zigZag.append(zig_zag(block_q))
             zigZag.append(np.array(zig_zag(block_q)))
 
-
     # DPCM cho giá trị DC
     dc = []
     dc.append(zigZag[0][0])  # giữ nguyên giá trị đầu tiên
     for i in range(1, len(zigZag)):
-        dc.append(zigZag[i][0]-zigZag[i-1][0])
+        dc.append(zigZag[i][0] - zigZag[i - 1][0])
 
     # RLC cho giá trị AC
     rlc = []
@@ -440,20 +446,18 @@ def main():
                 rlc.append(zeros)
                 rlc.append(zigZag[i][j])
                 zeros = 0
-        if(zeros != 0):
+        if (zeros != 0):
             rlc.append(zeros)
             rlc.append(0)
 
-
     #### Huffman ####
-
 
     # Huffman DPCM
     # Tìm tần suất xuất hiện cho mỗi giá trị của danh sách
     # counterDPCM = collections.Counter(dc)
-    
+
     # Convert NumPy arrays to tuples
-    dc_tuples = [tuple(arr) for arr in dc]
+    dc_tuples = [(value,) for value in dc]
 
     # Create Counter from the tuples
     counterDPCM = collections.Counter(dc_tuples)
@@ -469,20 +473,19 @@ def main():
     # chạy thuật toán Huffman trên một danh sách các "nút". Nó trả về một con trỏ đến gốc của một cây mới của "các nút bên trong".
     rootDPCM = iterate(symbolsDPCM)
 
-# Convert NumPy arrays to tuples
-    dc_tuple = tuple(map(tuple, dc))
-# Convert NumPy array elements to tuple in rlc
-    rlc_tuple = [tuple(map(int, [x])) if isinstance(x, int) else tuple(map(int, x)) for x in rlc]
-
+    # Convert NumPy arrays to tuples
+    dc_tuples = tuple((value,) for value in dc)
+    # Convert NumPy array elements to tuple in rlc
+    rlc_tuple = [
+        tuple(map(int, [x])) if isinstance(x, (int, np.float64)) else tuple(map(int, x)) for x in rlc
+    ]
 
     # Update Counter creation
-    counterDPCM = collections.Counter(map(tuple, dc_tuple))
+    counterDPCM = collections.Counter(map(tuple, dc_tuples))
     counterRLC = collections.Counter(rlc_tuple)
-
 
     # # Mã hóa danh sách các ký hiệu nguồn.
     sDPMC = encode(dc, symbolsDPCM)
-
 
     # # Huffman RLC
     # # Tìm tần suất xuất hiện cho mỗi giá trị của danh sách
@@ -501,9 +504,7 @@ def main():
 
     # Mã hóa danh sách các ký hiệu nguồn.
     sRLC = encode(rlc, symbolsRLC)
-    stop = time.time() # thời gian kết thúc nén
-
-
+    stop = time.time()  # thời gian kết thúc nén
 
     ################## JPEG decompression ##################
 
@@ -529,15 +530,14 @@ def main():
         inverse_DPCM.append(decodeDPMC[0])  # giá trị đầu tiên giữ nguyên
 
         for i in range(1, len(decodeDPMC)):
-            inverse_DPCM.append(decodeDPMC[i] + inverse_DPCM[i-1])
-
+            inverse_DPCM.append(decodeDPMC[i] + inverse_DPCM[i - 1])
 
     # Inverse RLC
     inverse_RLC = []
     for i in range(0, len(decodeRLC)):
         if (i % 2 == 0):
-            if(decodeRLC[i] != 0.0):
-                if(i+1 < len(decodeRLC) and decodeRLC[i+1] == 0):
+            if (decodeRLC[i] != 0.0):
+                if (i + 1 < len(decodeRLC) and decodeRLC[i + 1] == 0):
                     for j in range(1, int(decodeRLC[i])):
                         inverse_RLC.append(0.0)
                 else:
@@ -545,37 +545,34 @@ def main():
                         inverse_RLC.append(0.0)
         else:
             inverse_RLC.append(decodeRLC[i])
-    new_img = np.empty(shape=(iHeight, iWidth))
-    height = 0
-    width = 0
-    temp = []
-    temp2 = []
+
+    # Initialize new_img as an array of zeros
+    new_img = np.zeros_like(img, dtype=float)
+
+    # Iterate through each block
     for i in range(0, len(inverse_DPCM)):
-        temp.append(inverse_DPCM[i])
-        for j in range(0, 63):
-            temp.append((inverse_RLC[j+i*63]))
-        temp2.append(temp)
+        temp = [inverse_DPCM[i]]
+        temp.extend(inverse_RLC[i * 63: (i + 1) * 63])
 
-        # inverse Zig-Zag và nghịch đảo Lượng tử hóa các hệ số DCT
-        inverse_blockq = np.multiply(np.reshape(
-            zig_zag_reverse(temp2), (8, 8)), qtable)
+        # Inverse Zig-Zag and reverse Quantization of DCT coefficients
+        inverse_blockq = np.multiply(np.reshape(zig_zag_reverse(temp), (8, 8)), qtable)
 
-        # inverse DCT
-        inverse_dct = cv2.idct(inverse_blockq,qtable)
-        for startY in range(height, height+8, 8):
-            for startX in range(width, width+8, 8):
-                new_img[startY:startY+8, startX:startX+8] = inverse_dct
-        width = width + 8
-        if(width == iHeight):
-            width = 0
-            height = height + 8
-        temp = []
-        temp2 = []
-    np.place(new_img, new_img > 255, 255)
-    np.place(new_img, new_img < 0, 0)
+        # Inverse DCT
+        inverse_dct = idct(inverse_blockq, qtable)
 
+        # Determine the position to place the inverse_dct block in new_img
+        startY = (i // (iWidth // 8)) * 8
+        startX = (i % (iWidth // 8)) * 8
 
- ################ Hiển thị ảnh ##################
+        new_img[startY:startY + 8, startX:startX + 8] = inverse_dct
+
+    # Clip the pixel values to the valid range [0, 255]
+    np.clip(new_img, 0, 255, out=new_img)
+
+    # Convert the dtype of new_img to uint8 for proper image display and saving
+    new_img = new_img.astype(np.uint8)
+
+    ################ Hiển thị ảnh ##################
     plt.subplot(121), plt.imshow(img, cmap='gray'), plt.title('Original Image')
     plt.xticks([]), plt.yticks([])
     plt.subplot(122), plt.imshow(new_img, cmap='gray'), plt.title('Image after decompress')
@@ -599,7 +596,8 @@ def main():
     print("Compression Ratio = ", Compression_Ratio(filepath))
 
     # Thời gian nén
-    print("Time Compress: ", stop-start)
+    print("Time Compress: ", stop - start)
+
 
 if __name__ == "__main__":
     main()
