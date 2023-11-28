@@ -263,6 +263,8 @@ def zig_zag_reverse(input_matrix):
 
 
 def MSE(img1, img2):
+    print("img1 shape:", img1.shape)
+    print("img2 shape:", img2.shape)
     # Ensure both images have the same shape
     if img1.shape != img2.shape:
         raise ValueError("Images must have the same shape for MSE calculation.")
@@ -276,9 +278,19 @@ def MSE(img1, img2):
 def PSNR(mse):
     return 10 * log(((255 * 255) / mse), 10)
 
-
 def SSIM(img1, img2):
-    return ssim(img1.astype(np.float64), img2.astype(np.float64), data_range=img2.max() - img2.min())
+    # Chuyển đổi sang kiểu float64 để tính toán chính xác
+    img1 = img1.astype(np.float64)
+    img2 = img2.astype(np.float64)
+
+    # Tính toán SSIM cho từng kênh màu và trung bình kết quả
+    ssim_values = []
+    for channel in range(img1.shape[-1]):
+        channel_ssim = ssim(img1[:, :, channel], img2[:, :, channel], data_range=img2.max() - img2.min())
+        ssim_values.append(channel_ssim)
+
+    # Trả về giá trị SSIM trung bình của tất cả các kênh
+    return np.mean(ssim_values)
 
 
 def Compression_Ratio(filepath):
@@ -289,10 +301,30 @@ def Compression_Ratio(filepath):
     CR = Ori_img / float(Com_img)
     return CR
 
+def calculate_ssim(img1, img2):
+    # Ensure both images have the same shape
+    if img1.shape != img2.shape:
+        raise ValueError("Images must have the same shape for SSIM calculation.")
+
+    # Specify an appropriate window size (odd value)
+    win_size = min(img1.shape[0], img1.shape[1], img2.shape[0], img2.shape[1])
+    win_size = win_size if win_size % 2 == 1 else win_size - 1
+
+    # Calculate SSIM with the specified window size and considering three channels
+    ssim_value, _ = ssim(img1.astype(np.float64), img2.astype(np.float64), win_size=win_size, data_range=img2.max() - img2.min(), multichannel=True, channel_axis=2)
+
+    return ssim_value
+
 
 def main():
-    filepath = ('vidu_1.png')
+    filepath = ('challeger_medal.png')
     image = cv2.imread(filepath)
+
+    # Pad the image to make it divisible by 8 with white padding
+    oHeight, oWidth = image.shape[:2]
+    pad_height = (8 - oHeight % 8) % 8
+    pad_width = (8 - oWidth % 8) % 8
+    image = np.pad(image, ((0, pad_height), (0, pad_width), (0, 0)), mode='constant', constant_values=255)
 
     # BGR to YCrBr
     ycbcr_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
@@ -316,57 +348,27 @@ def main():
     start = time.time()
     #iHeight, iWidth = img.shape[:2]
     iHeight, iWidth = image.shape[:2]
+
     zigZag = []
-    """zigZag_y = []
-    zigZag_cb = []
-    zigZag_cr = []"""
     for startY in range(0, iHeight, 8):
         for startX in range(0, iWidth, 8):
             block = img[startY:startY + 8, startX:startX + 8]
-            # Lấy block từng khối
-            """block_y = image[startY:startY + 8, startX:startX + 8]
-            block_cb = image[startY:startY + 8, startX:startX + 8]
-            block_cr = image[startY:startY + 8, startX:startX + 8]"""
 
             # Tính DCT cho khối
             block_t = np.float32(block)  # chuyển đổi sang số thực
             dct = dct_block(block_t)
-            """block_t_y = np.float32(block_y)
-            block_t_cb = np.float32(block_cb)
-            block_t_cr = np.float32(block_cr)
-            dct_y = cv2.dct(block_t_y)
-            dct_cb = cv2.dct(block_t_cb)
-            dct_cr = cv2.dct(block_t_cr)"""
 
             # lượng tử hóa các hệ số DCT
             block_q = np.floor(np.divide(dct, qtable) + 0.5)
-            """block_q_y = np.floor(np.divide(dct_y, qtable) + 0.5)
-            block_q_cb = np.floor(np.divide(dct_cb, qtable) + 0.5)
-            block_q_cr = np.floor(np.divide(dct_cr, qtable) + 0.5)"""
 
             # Zig Zag
             zigZag.append(zig_zag(block_q, 8))
-            """zigZag_y.append(zig_zag(block_q_y, 8))
-            zigZag_cb.append(zig_zag(block_q_cb, 8))
-            zigZag_cr.append(zig_zag(block_q_cr, 8))"""
 
     # DPCM cho giá trị DC
     dc = []
     dc.append(zigZag[0][0])  # giữ nguyên giá trị đầu tiên
     for i in range(1, len(zigZag)):
         dc.append(zigZag[i][0] - zigZag[i - 1][0])
-    """dc_y = []
-    dc_y.append(zigZag_y[0][0])  # giữ nguyên giá trị đầu tiên
-    for i in range(1, len(zigZag_y)):
-        dc_y.append(zigZag_y[i][0] - zigZag_y[i - 1][0])
-    dc_cb = []
-    dc_cb.append(zigZag_cb[0][0])  # giữ nguyên giá trị đầu tiên
-    for i in range(1, len(zigZag_cb)):
-        dc_cb.append(zigZag_cb[i][0] - zigZag_cb[i - 1][0])
-    dc_cr = []
-    dc_cr.append(zigZag_cr[0][0])  # giữ nguyên giá trị đầu tiên
-    for i in range(1, len(zigZag_cr)):
-        dc_cr.append(zigZag_cr[i][0] - zigZag_cr[i - 1][0])"""
 
     # RLC cho giá trị AC
     rlc = []
@@ -383,48 +385,6 @@ def main():
         if (zeros != 0):
             rlc.append(zeros)
             rlc.append(0)
-    """rlc_y = []
-    zeros = 0
-    for i in range(0, len(zigZag_y)):
-        zeros = 0
-        for j in range(1, len(zigZag_y[i])):
-            if (zigZag_y[i][j] == 0):
-                zeros += 1
-            else:
-                rlc_y.append(zeros)
-                rlc_y.append(zigZag_y[i][j])
-                zeros = 0
-        if (zeros != 0):
-            rlc_y.append(zeros)
-            rlc_y.append(0)
-    rlc_cb = []
-    zeros = 0
-    for i in range(0, len(zigZag_cb)):
-        zeros = 0
-        for j in range(1, len(zigZag_cb[i])):
-            if (zigZag_cb[i][j] == 0):
-                zeros += 1
-            else:
-                rlc_cb.append(zeros)
-                rlc_cb.append(zigZag_cb[i][j])
-                zeros = 0
-        if (zeros != 0):
-            rlc_cb.append(zeros)
-            rlc_cb.append(0)
-    rlc_cr = []
-    zeros = 0
-    for i in range(0, len(zigZag_cr)):
-        zeros = 0
-        for j in range(1, len(zigZag_cr[i])):
-            if (zigZag_cr[i][j] == 0):
-                zeros += 1
-            else:
-                rlc_cr.append(zeros)
-                rlc_cr.append(zigZag_cr[i][j])
-                zeros = 0
-        if (zeros != 0):
-            rlc_cr.append(zeros)
-            rlc_cr.append(0)"""
     #### Huffman ####
 
     # Huffman DPCM
@@ -531,12 +491,6 @@ def main():
     np.place(new_img, new_img < 0, 0)
 
     ################ Hiển thị ảnh ##################
-    """plt.subplot(121), plt.imshow(img, cmap='gray'), plt.title('Original Image')
-    plt.xticks([]), plt.yticks([])
-    plt.subplot(122), plt.imshow(new_img, cmap='gray'), plt.title('Image after decompress')
-    plt.xticks([]), plt.yticks([])
-    plt.show()"""
-
     # Gộp 3 kênh màu Y, Cr, Cb
     reconstructed_image_ycbcr = cv2.merge([img, cr_channel, cb_channel])
 
@@ -554,14 +508,14 @@ def main():
     cv2.imwrite('decompressed.jpg', new_img)
 
     # Tính MSE
-    mse = MSE(img, new_img)
+    mse = MSE(image, new_img)
     print("MSE = ", mse)
 
     # Tính PSNR
     print("PSNR = ", PSNR(mse))
 
     # Tính SSIM
-    print("SSIM = ", SSIM(img, new_img))
+    print("SSIM = ", SSIM(image, new_img))
 
     # Compression Ratio
     print("Compression Ratio = ", Compression_Ratio(filepath))
